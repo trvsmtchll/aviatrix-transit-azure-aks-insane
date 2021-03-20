@@ -22,6 +22,6 @@ azure_region1         = "East US"
 azure_vng_subnet_cidr = "10.21.6.0/27"
 
 // Spokes
-azure_vm_spokes = { "test" = "10.23.1.0/20" } 
+azure_vm_spokes = { "test1" = "10.23.1.0/20", "test2" = "10.24.1.0/20" } 
 
 azure_aks_spoke_cidr = "10.22.1.0/20"
