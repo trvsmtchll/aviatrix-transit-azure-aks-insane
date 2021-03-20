@@ -3,7 +3,7 @@ provider "aviatrix" {
   username                = var.username
   password                = var.password
   skip_version_validation = true
-  version                 = "2.18"
+  version                 = "2.18.1"
 }
 
 provider "azurerm" {
