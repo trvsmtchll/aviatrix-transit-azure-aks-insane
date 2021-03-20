@@ -19,11 +19,6 @@ resource "azurerm_subnet" "vng_gateway_subnet" {
   address_prefixes     = [var.azure_vng_subnet_cidr]
 }
 
-resource "azurerm_resource_group" "example" {
-  name     = "aviatrix-poc-rg"
-  location = var.azure_region1
-}
-
 # Azure VM Spokes
 module "azure_spoke" {
   for_each      = var.azure_vm_spokes
@@ -38,34 +33,6 @@ module "azure_spoke" {
   instance_size = var.instance_size
   transit_gw    = module.azure_transit_1.transit_gateway.gw_name
 }
-
-/*
-
-# Create an Aviatrix OCI Gateway with VPN enabled
-resource "aviatrix_gateway" "oci_vpn_gw" {
-  cloud_type          = 8
-  account_name        = var.azure_account_name
-  gw_name             = "user-vpn"
-  vpc_id              = var.oci_vcn_name
-  vpc_reg             = var.azure_region1
-  gw_size             = var.gw_size
-  subnet              = var.vcn_public_subnet_cidr
-  vpn_access          = true
-  vpn_cidr            = "192.168.43.0/24"
-  max_vpn_conn        = "25"
-  
-}
-
-# Create VPN Users and attach them to OCI VPN Gateway
-resource "aviatrix_vpn_user" "oci_vpn_users" {
-  for_each           = var.vpn_users
-  vpc_id             = aviatrix_gateway.oci_vpn_gw.vpc_id
-  gw_name            = aviatrix_gateway.oci_vpn_gw.gw_name
-  user_name          = each.value.user_name
-  user_email         = each.value.user_email
-}
-
-
 
 # Azure AKS Spoke
 module "azure_aks_spoke" {
@@ -85,7 +52,10 @@ module "azure_aks_spoke" {
 data "azurerm_subscription" "primary" {}
 data "azurerm_subscription" "current" {}
 
-
+resource "azurerm_resource_group" "example" {
+  name     = "aviatrix-poc-rg"
+  location = var.azure_region1
+}
 
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = "demo-aks"
@@ -144,7 +114,6 @@ resource "helm_release" "nginx" {
   chart      = "nginx"
   depends_on = [local_file.local-config-file]
 }
-*/
 
 # Azure Test VMs
 module "azure_test_vm" {
@@ -155,7 +124,7 @@ module "azure_test_vm" {
   nb_public_ip                  = 1
   remote_port                   = "22"
   vm_os_simple                  = "UbuntuServer"
-  vnet_subnet_id                = module.azure_spoke[each.key].vnet.private_subnets[1].subnet_id
+  vnet_subnet_id                = module.azure_spoke[each.key].vnet.public_subnets[1].subnet_id
   delete_os_disk_on_termination = true
   custom_data                   = data.template_file.azure-init.rendered
   admin_password                = random_password.password.result
