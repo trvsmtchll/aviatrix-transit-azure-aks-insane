@@ -1,12 +1,15 @@
 # Azure Transit Module
 module "azure_transit_1" {
-  source                 = "terraform-aviatrix-modules/azure-transit/aviatrix"
-  version                = "3.0.0"
-  instance_size          = var.instance_size
-  ha_gw                  = var.ha_enabled
-  cidr                   = var.azure_transit_cidr1
-  region                 = var.azure_region1
-  account                = var.azure_account_name
+  #source                 = "./terraform-aviatrix-azure-transit"
+  source        = "terraform-aviatrix-modules/azure-transit/aviatrix"
+  version       = "3.0.0"
+  name          = "test-transit"
+  instance_size = var.instance_size
+  ha_gw         = var.ha_enabled
+  cidr          = var.azure_transit_cidr1
+  region        = var.azure_region1
+  account       = var.azure_account_name
+  #local_as_number        = "65100"
   enable_transit_firenet = true
   insane_mode            = true
 }
@@ -26,8 +29,9 @@ resource "azurerm_resource_group" "example" {
 
 # Azure VM Spokes
 module "azure_spoke" {
-  for_each      = var.azure_vm_spokes
+  for_each = var.azure_vm_spokes
   source        = "terraform-aviatrix-modules/azure-spoke/aviatrix"
+  #source = "./terraform-aviatrix-azure-spoke"
   version       = "3.0.0"
   name          = each.key
   cidr          = each.value
@@ -39,33 +43,37 @@ module "azure_spoke" {
   transit_gw    = module.azure_transit_1.transit_gateway.gw_name
 }
 
-/*
-
-# Create an Aviatrix OCI Gateway with VPN enabled
-resource "aviatrix_gateway" "oci_vpn_gw" {
-  cloud_type          = 8
-  account_name        = var.azure_account_name
-  gw_name             = "user-vpn"
-  vpc_id              = var.oci_vcn_name
-  vpc_reg             = var.azure_region1
-  gw_size             = var.gw_size
-  subnet              = var.vcn_public_subnet_cidr
-  vpn_access          = true
-  vpn_cidr            = "192.168.43.0/24"
-  max_vpn_conn        = "25"
-  
+# Azure Test VMs
+module "azure_test_vm" {
+  for_each                      = var.azure_vm_spokes
+  source                        = "Azure/compute/azurerm"
+  resource_group_name           = azurerm_resource_group.example.name
+  vm_hostname                   = "${each.key}-avx-test-vm"
+  nb_public_ip                  = 1
+  remote_port                   = "22"
+  vm_os_simple                  = "UbuntuServer"
+  vnet_subnet_id                = module.azure_spoke[each.key].vnet.public_subnets[1].subnet_id
+  delete_os_disk_on_termination = true
+  custom_data                   = data.template_file.azure-init.rendered
+  admin_password                = random_password.password.result
+  enable_ssh_key                = false
+  vm_size                       = var.test_instance_size
+  tags = {
+    environment = "aviatrix-poc"
+    name        = "${each.key}-avx-test-vm"
+  }
+  depends_on = [azurerm_resource_group.example]
 }
 
-# Create VPN Users and attach them to OCI VPN Gateway
-resource "aviatrix_vpn_user" "oci_vpn_users" {
-  for_each           = var.vpn_users
-  vpc_id             = aviatrix_gateway.oci_vpn_gw.vpc_id
-  gw_name            = aviatrix_gateway.oci_vpn_gw.gw_name
-  user_name          = each.value.user_name
-  user_email         = each.value.user_email
+data "template_file" "azure-init" {
+  template = file("${path.module}/azure-vm-config/azure_bootstrap.sh")
 }
 
-
+resource "random_password" "password" {
+  length           = 16
+  special          = true
+  override_special = "_%@"
+}
 
 # Azure AKS Spoke
 module "azure_aks_spoke" {
@@ -84,8 +92,6 @@ module "azure_aks_spoke" {
 # Aviatrix AKS Resource Group
 data "azurerm_subscription" "primary" {}
 data "azurerm_subscription" "current" {}
-
-
 
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = "demo-aks"
@@ -112,9 +118,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
     Environment = "aviatrix-poc-aks"
   }
 
- # provisioner "local-exec" {
- #   command = "echo azurerm_kubernetes_cluster.app.kube_config_raw > kube_config/demo_kubeconfig_azure"
- # }
+  # provisioner "local-exec" {
+  #   command = "echo azurerm_kubernetes_cluster.app.kube_config_raw > kube_config/demo_kubeconfig_azure"
+  # }
 
 }
 
@@ -144,37 +150,5 @@ resource "helm_release" "nginx" {
   chart      = "nginx"
   depends_on = [local_file.local-config-file]
 }
-*/
 
-# Azure Test VMs
-module "azure_test_vm" {
-  for_each                      = var.azure_vm_spokes
-  source                        = "Azure/compute/azurerm"
-  resource_group_name           = azurerm_resource_group.example.name
-  vm_hostname                   = "${each.key}-avx-test-vm"
-  nb_public_ip                  = 1
-  remote_port                   = "22"
-  vm_os_simple                  = "UbuntuServer"
-  vnet_subnet_id                = module.azure_spoke[each.key].vnet.private_subnets[1].subnet_id
-  delete_os_disk_on_termination = true
-  custom_data                   = data.template_file.azure-init.rendered
-  admin_password                = random_password.password.result
-  enable_ssh_key                = false
-  vm_size                       = var.test_instance_size
-  tags = {
-    environment = "aviatrix-poc"
-    name        = "${each.key}-avx-test-vm"
-  }
-  depends_on = [azurerm_resource_group.example]
-}
-
-data "template_file" "azure-init" {
-  template = file("${path.module}/azure-vm-config/azure_bootstrap.sh")
-}
-
-resource "random_password" "password" {
-  length           = 16
-  special          = true
-  override_special = "_%@"
-}
 

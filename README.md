@@ -1,4 +1,4 @@
-# Aviatrix Transit Azure (insane mode) with AKS and Ubuntu Test VM
+# Aviatrix Transit Azure (insane mode HPE) with AKS and Ubuntu Test VM
 
 ### Summary
 
@@ -7,8 +7,9 @@ The test VM will use password authentication (randomly generated), have port 22 
 
 ### BOM
 
-- 1 Aviatrix Transit in Azure with an Aviatrix spoke defined in terraform.tfvars, i.e. ```azure_spokes = { "Dev" = "10.22.1.0/20"``` attached to Aviatrix Transit Gateway.
-- 1 Azure Resource Group with Ubuntu 18.04 VM (iperf3 installed)
+- 1 Aviatrix Transit in Azure with an 2 Aviatrix spokes defined in terraform.tfvars, i.e. ```azure_spokes = { "test1" = "10.23.0.0/20", "test2" = "10.24.0.0/20" }``` attached to Aviatrix Transit Gateway.
+- 1 Azure Resource Group with Ubuntu 18.04 VM per spoke (iperf3 installed)
+- 1 AKS Spoke
 - 1 Azure Kubernetes Service with nginx helm chart
 
 ### Infrastructure diagram
@@ -29,7 +30,7 @@ Note the Cluster IP and External IPs for the nginx service.
 ### Compatibility
 Terraform version | Controller version | Terraform provider version
 :--- | :--- | :---
-0.13 | 6.3 | 2.18
+0.13 | 6.3 | 2.18.1
 
 ### Modules
 
@@ -79,17 +80,19 @@ You can ssh into the the test vm's created in azure like so...
 
 #### iperf
 
-Replace with the private IP of one of the created test vms - check Azure console for the value.
+Replace with the private IP of one of the created test vms - check terraform output for the value.
 Run the client on one test vm and the server on another test vm.
 
 ```
-iperf3 -c 10.21.3.20 -i 2 -t 30 -M 1400 -P 1 -p 5201
-iperf3 -s -p 5201
+iperf3 -s -p 5201 # on Spoke 1
+iperf3 -c 10.24.1.4 -i 2 -t 30 -M 1400 -P 10 -p 5201 # on Spoke 2
 ```
+
+[iperf3 detail]((./azure-insane-iperf3.md))
 
 ### kubernetes  
 
-Depending on your requirements testing will nginx provides a basic mechanism to curl and get a result back.
+Depending on your requirements testing will nginx provides a basic mechanism to curl and get a result back. 
 
 ### Deploy with hashicorp docker image _optional_
 
@@ -132,26 +135,43 @@ $ terrafform state list
 data.azurerm_subscription.current
 data.azurerm_subscription.primary
 data.template_file.azure-init
-azurerm_kubernetes_cluster.aks["dev"]
+azurerm_kubernetes_cluster.aks
 azurerm_resource_group.example
-azurerm_role_assignment.aks["dev"]
+azurerm_role_assignment.aks
 azurerm_subnet.vng_gateway_subnet
 helm_release.nginx
-local_file.local-config-file["dev"]
+local_file.local-config-file
 random_password.password
-module.azure_spoke["dev"].aviatrix_spoke_gateway.default
-module.azure_spoke["dev"].aviatrix_spoke_transit_attachment.default[0]
-module.azure_spoke["dev"].aviatrix_vpc.default
-module.azure_test_vm["dev"].data.azurerm_public_ip.vm[0]
-module.azure_test_vm["dev"].data.azurerm_resource_group.vm
-module.azure_test_vm["dev"].azurerm_availability_set.vm
-module.azure_test_vm["dev"].azurerm_network_interface.vm[0]
-module.azure_test_vm["dev"].azurerm_network_interface_security_group_association.test[0]
-module.azure_test_vm["dev"].azurerm_network_security_group.vm
-module.azure_test_vm["dev"].azurerm_network_security_rule.vm[0]
-module.azure_test_vm["dev"].azurerm_public_ip.vm[0]
-module.azure_test_vm["dev"].azurerm_virtual_machine.vm-linux[0]
-module.azure_test_vm["dev"].random_id.vm-sa
+module.azure_aks_spoke.aviatrix_spoke_gateway.default
+module.azure_aks_spoke.aviatrix_spoke_transit_attachment.default[0]
+module.azure_aks_spoke.aviatrix_vpc.default
+module.azure_spoke["test1"].aviatrix_spoke_gateway.default
+module.azure_spoke["test1"].aviatrix_spoke_transit_attachment.default[0]
+module.azure_spoke["test1"].aviatrix_vpc.default
+module.azure_spoke["test2"].aviatrix_spoke_gateway.default
+module.azure_spoke["test2"].aviatrix_spoke_transit_attachment.default[0]
+module.azure_spoke["test2"].aviatrix_vpc.default
+module.azure_test_vm["test1"].data.azurerm_public_ip.vm[0]
+module.azure_test_vm["test1"].data.azurerm_resource_group.vm
+module.azure_test_vm["test1"].azurerm_availability_set.vm
+module.azure_test_vm["test1"].azurerm_network_interface.vm[0]
+module.azure_test_vm["test1"].azurerm_network_interface_security_group_association.test[0]
+module.azure_test_vm["test1"].azurerm_network_security_group.vm
+module.azure_test_vm["test1"].azurerm_network_security_rule.vm[0]
+module.azure_test_vm["test1"].azurerm_public_ip.vm[0]
+module.azure_test_vm["test1"].azurerm_virtual_machine.vm-linux[0]
+module.azure_test_vm["test1"].random_id.vm-sa
+module.azure_test_vm["test2"].data.azurerm_public_ip.vm[0]
+module.azure_test_vm["test2"].data.azurerm_resource_group.vm
+module.azure_test_vm["test2"].azurerm_availability_set.vm
+module.azure_test_vm["test2"].azurerm_network_interface.vm[0]
+module.azure_test_vm["test2"].azurerm_network_interface_security_group_association.test[0]
+module.azure_test_vm["test2"].azurerm_network_security_group.vm
+module.azure_test_vm["test2"].azurerm_network_security_rule.vm[0]
+module.azure_test_vm["test2"].azurerm_public_ip.vm[0]
+module.azure_test_vm["test2"].azurerm_virtual_machine.vm-linux[0]
+module.azure_test_vm["test2"].random_id.vm-sa
 module.azure_transit_1.aviatrix_transit_gateway.default
 module.azure_transit_1.aviatrix_vpc.default
+
 ```
